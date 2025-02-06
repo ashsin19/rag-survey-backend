@@ -28,12 +28,11 @@ class execute_api:
         self.load_dotenv()
         self.table_name=os.getenv("TBL_NAME")
         self.API_KEY=os.getenv("SQLITE_KEY")
-        self.DATABASE_NAME = os.getenv("DB_NAME")
         self.OWNER_NAME = os.getenv("DB_OWNER")
         self.BASE_URL = os.getenv("DB_BASEURL")
         self.SECRET_KEY = os.getenv("SECRET_KEY")
         self.ALGORITHM = os.getenv("ALGORITHM")
-        self.LOGIN_DB = "user_authentication.db"
+        self.LOGIN_DB = os.getenv("LOGIN_DB")
 
     def verify_password(self,plain_password: str, hashed_password: str):
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
