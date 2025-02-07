@@ -22,6 +22,8 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from sentence_transformers import SentenceTransformer, util
+import torch
 
 class Token(BaseModel):
     access_token: str
@@ -114,6 +116,24 @@ class execute_api:
         else:
             print(f"Error: {response.status_code} - {response.text}")
             return None
+        
+    def get_document_rerank(self,n:int, query, docs):
+        """ 
+        Function to re-rank documents with the use of semanttic similarity
+        """
+        reranker_model = SentenceTransformer("sentence-transformers/msmarco-MiniLM-L6-cos-v5") 
+        text_doc = [doc.page_content for doc in docs]
+
+        # Encode query and documents
+        query_embedding = reranker_model.encode(query, convert_to_tensor=True)
+        doc_embeddings = reranker_model.encode(text_doc, convert_to_tensor=True)
+
+        # Compute cosine similarity scores
+        similarity_scores = util.pytorch_cos_sim(query_embedding, doc_embeddings)[0]
+
+        # Sort documents by similarity score
+        sorted_docs = [text_doc[i] for i in similarity_scores.argsort(descending=True)]
+        return sorted_docs[:n] # Will return top n results
         
     def construct_query_prompt(self,user_query):
         """Refine user query to be more context-aware and improve LLM response quality."""

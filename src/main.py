@@ -89,8 +89,10 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
         all_results = []
         query_prompt = actions.construct_query_prompt(request.query)
         for store in actions.vector_stores.values():
-            results = store.similarity_search(query_prompt, k=3)
-            all_results.extend([doc.page_content for doc in results])
+            results = store.similarity_search(query_prompt, k=10)
+            ranked_results = actions.get_document_rerank(3,query_prompt,results)
+            # all_results.extend([doc.page_content for doc in results])
+            all_results.extend(ranked_results)
         
         return {"results": all_results}
     except Exception as e:
