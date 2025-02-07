@@ -36,6 +36,7 @@ class QueryRequest(BaseModel):
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 class execute_api:
     def __init__(self):
         self.load_dotenv()
@@ -50,6 +51,9 @@ class execute_api:
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
         self.vector_stores = {}
+        self.POPPLER_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "poppler", "Library", "bin"))
+        self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
+        pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
 
     def verify_password(self,plain_password: str, hashed_password: str):
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
@@ -85,7 +89,7 @@ class execute_api:
 
     def extract_text_from_images(self,pdf_path):
         """Extracts text using OCR from scanned PDF images."""
-        images = convert_from_path(pdf_path)
+        images = convert_from_path(pdf_path,poppler_path=self.POPPLER_PATH)
         extracted_text = "\n".join([pytesseract.image_to_string(img) for img in images])
         return extracted_text
 
@@ -111,6 +115,25 @@ class execute_api:
             print(f"Error: {response.status_code} - {response.text}")
             return None
         
+    def construct_query_prompt(self,user_query):
+        """Refine user query to be more context-aware and improve LLM response quality."""
+        prompt_template = f"""
+        You are an AI assistant helping a user retrieve insights from a research report.
+        Given the following question: "{user_query}",
+        improve it to be more specific, structured, and informative.
+        If needed, add context for better retrieval.
+
+        Here are the rules that we want to follow in generating the insights
+
+        1. The insights should be concise and framed as a structued result for better understanding
+        2. Extract the key topics in the user query
+        3. If required, then the question can be segregated into logical components 
+
+        You should return the improved queries only. Avoid any unnecessary detail
+        """
+        return prompt_template
+      
+
     def verify_token(self,token: str = Depends(oauth2_scheme)):
         try:
             payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])

@@ -59,7 +59,6 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
             documents = []
 
         extracted_text = "\n".join([doc.page_content for doc in documents])
-        print(len(extracted_text),len(extracted_text.strip()))
 
         # If PyPDFLoader fails or returns empty text, use OCR
         if not extracted_text.strip():
@@ -80,6 +79,22 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
         actions.vector_stores[file.filename] = vector_store
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+
+@app.post("/query/")
+async def query_report(request: QueryRequest, current_user: str = Depends(actions.verify_token)):
+    if not actions.vector_stores:
+        raise HTTPException(status_code=400, detail="No reports have been processed yet.")
+    
+    try:
+        all_results = []
+        query_prompt = actions.construct_query_prompt(request.query)
+        for store in actions.vector_stores.values():
+            results = store.similarity_search(query_prompt, k=3)
+            all_results.extend([doc.page_content for doc in results])
+        
+        return {"results": all_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
 @app.get("/")
 def read_root():
