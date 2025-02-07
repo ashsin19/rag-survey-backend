@@ -64,8 +64,8 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
         if not extracted_text.strip():
             extracted_text = actions.extract_text_from_images(file_path)
 
-        if not extracted_text.strip():
-            raise HTTPException(status_code=500, detail="Failed to extract text from PDF. The document might be encrypted or unreadable.")
+        # if not extracted_text.strip():
+        #     raise HTTPException(status_code=500, detail="Failed to extract text from PDF. The document might be encrypted or unreadable.")
 
         # Process extracted text
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
