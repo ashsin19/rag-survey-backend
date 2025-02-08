@@ -116,6 +116,23 @@ class execute_api:
         else:
             print(f"Error: {response.status_code} - {response.text}")
             return None
+    
+    def get_report_comparison(self, query, rpt1, rpt2):
+        res1 = rpt1.similarity_search(query, k=7)
+        res2 = rpt2.similarity_search(query, k=7)
+
+        content1 = set([doc.page_content for doc in res1])
+        content2 = set([doc.page_content for doc in res2])
+    
+        common_words = content1 & content2
+        unique_to_report1 = content1 - content2
+        unique_to_report2 = content2 - content1
+    
+        return {
+            "common insights": list(common_words),
+            "unique in report1": list(unique_to_report1),
+            "unique in report2": list(unique_to_report2)
+        }
         
     def get_document_rerank(self,n:int, query, docs):
         """ 

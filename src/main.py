@@ -98,6 +98,12 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
+@app.post("/compare/")
+async def compare_reports(request: QueryRequest, current_user: str = Depends(actions.verify_token)):
+    if len(actions.vector_stores) < 2:
+        raise HTTPException(status_code=400, detail="Need to have at least 2 reports to compare.")
+
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to FastAPI API"}
