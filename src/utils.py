@@ -123,11 +123,11 @@ class execute_api:
 
         content1 = set([doc.page_content for doc in res1])
         content2 = set([doc.page_content for doc in res2])
-    
+        print(f"C1 {content1}, C2{content2}")
         common_words = content1 & content2
         unique_to_report1 = content1 - content2
         unique_to_report2 = content2 - content1
-    
+        print(f"Common {common_words}")
         return {
             "common insights": list(common_words),
             "unique in report1": list(unique_to_report1),
@@ -151,7 +151,23 @@ class execute_api:
         # Sort documents by similarity score
         sorted_docs = [text_doc[i] for i in similarity_scores.argsort(descending=True)]
         return sorted_docs[:n] # Will return top n results
-        
+
+    def generate_compare_reports(self, query,vec_stores:dict):
+        rept_keys = list(vec_stores.keys())
+        results = []
+        try:
+            for x in range(len(rept_keys)):
+                for y in range(x+1,len(rept_keys)):
+                    comparison = self.get_report_comparison(query, vec_stores[rept_keys[x]],vec_stores[rept_keys[y]])
+                    results.append({
+                        "report 1":rept_keys[x],
+                        "report 2":rept_keys[y],
+                        "comparison":comparison
+                    })
+            return {"comparisons": results}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error comparing reports: {str(e)}")
+
     def construct_query_prompt(self,user_query):
         """Refine user query to be more context-aware and improve LLM response quality."""
         prompt_template = f"""

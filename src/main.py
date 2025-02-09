@@ -102,6 +102,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
 async def compare_reports(request: QueryRequest, current_user: str = Depends(actions.verify_token)):
     if len(actions.vector_stores) < 2:
         raise HTTPException(status_code=400, detail="Need to have at least 2 reports to compare.")
+    actions.generate_compare_reports(request.query,actions.vector_stores)
 
 
 @app.get("/")
