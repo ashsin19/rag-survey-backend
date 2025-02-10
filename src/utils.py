@@ -8,6 +8,7 @@ import re
 from pydantic import BaseModel
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from jose import JWTError, jwt
 from starlette.responses import RedirectResponse
@@ -16,6 +17,7 @@ import bcrypt
 import shutil
 import os
 import cv2
+import logging
 import pytesseract
 from pdf2image import convert_from_path
 from langchain_community.embeddings import OpenAIEmbeddings
@@ -55,6 +57,7 @@ class execute_api:
         self.vector_stores = {}
         self.POPPLER_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "poppler", "Library", "bin"))
         self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
+        logging.basicConfig(level=logging.DEBUG)
         pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
 
     def verify_password(self,plain_password: str, hashed_password: str):
@@ -121,19 +124,48 @@ class execute_api:
         res1 = rpt1.similarity_search(query, k=7)
         res2 = rpt2.similarity_search(query, k=7)
 
-        content1 = set([doc.page_content for doc in res1])
-        content2 = set([doc.page_content for doc in res2])
-        print(f"C1 {content1}, C2{content2}")
-        common_words = content1 & content2
+        content1 = set()
+        content2 = set()
+        for doc in res1:
+            content1.update(self.split_text_to_sentences(doc.page_content))
+        for doc in res2:
+            content2.update(self.split_text_to_sentences(doc.page_content))
+        common_sentences = self.extract_common_sentences_cosine(list(content1), list(content2))
         unique_to_report1 = content1 - content2
         unique_to_report2 = content2 - content1
-        print(f"Common {common_words}")
         return {
-            "common insights": list(common_words),
-            "unique in report1": list(unique_to_report1),
-            "unique in report2": list(unique_to_report2)
+            "common_insights": list(common_sentences),
+            "unique_in_report_1": list(unique_to_report1),
+            "unique_in_report_2": list(unique_to_report2)
         }
+    
+    def split_text_to_sentences(self,text):
+        pattern_match = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s'
+        sentences = re.split(pattern_match,text)
+        processed_sentences = [sentence.replace("\n", " ").strip() for sentence in sentences if sentence.strip()]
+        return processed_sentences
         
+    def remove_unicode_characters(self,text):
+        """Remove Unicode characters and replace them with plain text."""
+        if isinstance(text, str):
+            return re.sub(r'[^\x00-\x7F]+', ' ', text)  # Replace non-ASCII characters with a space
+        elif isinstance(text, list):
+            return [self.remove_unicode_characters(t) for t in text]  # Recursively clean lists
+        return text
+
+    def extract_common_sentences_cosine(self, s1, s2):
+        threshold = 0.8
+        similarity_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        embed1 = similarity_model.encode(s1, convert_to_tensor=True)
+        embed2 = similarity_model.encode(s2, convert_to_tensor=True)
+        scores = util.pytorch_cos_sim(embed1,embed2)
+        common_sentences = []
+        for i in range(len(s1)):
+            for j in range(len(s2)):
+                if scores[i][j] > threshold:
+                    common_sentences.append(s1[i])
+        return list(set(common_sentences))
+
     def get_document_rerank(self,n:int, query, docs):
         """ 
         Function to re-rank documents with the use of semanttic similarity
@@ -152,6 +184,12 @@ class execute_api:
         sorted_docs = [text_doc[i] for i in similarity_scores.argsort(descending=True)]
         return sorted_docs[:n] # Will return top n results
 
+    def ensure_list(self,value):
+        """Ensure the value is always returned as a list."""
+        if isinstance(value, list):
+            return value
+        return [value]
+
     def generate_compare_reports(self, query,vec_stores:dict):
         rept_keys = list(vec_stores.keys())
         results = []
@@ -159,13 +197,24 @@ class execute_api:
             for x in range(len(rept_keys)):
                 for y in range(x+1,len(rept_keys)):
                     comparison = self.get_report_comparison(query, vec_stores[rept_keys[x]],vec_stores[rept_keys[y]])
-                    results.append({
-                        "report 1":rept_keys[x],
-                        "report 2":rept_keys[y],
-                        "comparison":comparison
-                    })
-            return {"comparisons": results}
+                    formatted_result = {
+                    "report_1": rept_keys[x],
+                    "report_2": rept_keys[y],
+                    "comparison": {
+                        "common_insights": [],
+                        "unique_in_report_1": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_1"][0])),
+                        "unique_in_report_2": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_2"][0]))
+                        }
+                    }
+                
+                    results.append(formatted_result)
+            response={"comparisons": results[0]}
+            if not results:
+                response = {"comparisons": "No comparisons found."}
+            print(json.dumps(response, indent=4))
+            return JSONResponse(content=response, media_type="application/json")
         except Exception as e:
+            print(f"Exception: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error comparing reports: {str(e)}")
 
     def construct_query_prompt(self,user_query):
