@@ -202,17 +202,17 @@ class execute_api:
                     "report_2": rept_keys[y],
                     "comparison": {
                         "common_insights": [],
-                        "unique_in_report_1": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_1"][0])),
-                        "unique_in_report_2": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_2"][0]))
+                        "unique_in_report_1": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_1"])),
+                        "unique_in_report_2": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_2"]))
                         }
                     }
                 
                     results.append(formatted_result)
-            response={"comparisons": results[0]}
+            response={"comparisons": results}
             if not results:
                 response = {"comparisons": "No comparisons found."}
-            print(json.dumps(response, indent=4))
             return JSONResponse(content=response, media_type="application/json")
+
         except Exception as e:
             print(f"Exception: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error comparing reports: {str(e)}")
