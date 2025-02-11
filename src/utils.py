@@ -105,7 +105,7 @@ class execute_api:
 
     def extract_text_from_images(self,pdf_path):
         """Extracts text using OCR from scanned PDF images."""
-        images = convert_from_path(pdf_path,poppler_path=self.POPPLER_PATH)
+        images = convert_from_path(pdf_path,poppler_path=self.POPPLER_PATH,strict=False)
         extracted_text = "\n".join([pytesseract.image_to_string(img) for img in images])
         return extracted_text
 

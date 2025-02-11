@@ -33,4 +33,4 @@ WORKDIR /app/src
 EXPOSE 8080
 
 # Run the FastAPI app with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080","--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

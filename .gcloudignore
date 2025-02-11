@@ -5,11 +5,7 @@ __pycache__/
 *.pyo
 
 # Ignore Docker build artifacts
-Dockerfile*
 docker-compose*
-
-# Node.js artifacts (in case you have any frontend code mixed in)
-node_modules/
 
 # System files
 .DS_Store
