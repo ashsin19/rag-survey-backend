@@ -75,7 +75,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
             raise HTTPException(status_code=500, detail="Error processing document: No valid text extracted.")
 
         vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY))
-        vector_store.save_local(f"{actions.VECTOR_DB_PATH}_{file.filename}")
+        vector_store.save_local(f"{actions.VECTOR_DB_PATH}/{file.filename}")
         actions.vector_stores[file.filename] = vector_store
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
