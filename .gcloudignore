@@ -13,7 +13,6 @@ node_modules/
 
 # System files
 .DS_Store
-.env
 *.log
 
 # Git files
