@@ -1,4 +1,5 @@
 import json
+import tempfile
 import os
 import requests
 import base64
@@ -28,6 +29,8 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer, util
 import torch
+import gc
+import concurrent.futures
 
 class Token(BaseModel):
     access_token: str
@@ -126,11 +129,30 @@ class execute_api:
             if result:
                 return {"username": item[0]['Value'], "hashed_password": item[1]['Value']}
         return None   
+    
+    def process_image(self,img):
+        """Function to extract text from a single image using pytesseract."""
+        return pytesseract.image_to_string(img, config="--oem 1 --psm 6")
 
     def extract_text_from_images(self,pdf_path):
         """Extracts text using OCR from scanned PDF images."""
-        images = convert_from_path(pdf_path,poppler_path=self.POPPLER_PATH,strict=False)
-        extracted_text = "\n".join([pytesseract.image_to_string(img) for img in images])
+        extracted_text = []
+        # Use a temporary directory for image files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            images = convert_from_path(
+                pdf_path,
+                poppler_path=self.POPPLER_PATH,
+                output_folder=temp_dir,  # Save images in the temporary directory
+                fmt='jpeg',
+                dpi=150,
+                strict=False
+            )
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                results = list(executor.map(self.process_image, images))
+        
+            extracted_text = "\n".join(results)
+        # Join all extracted text into a single string
         return extracted_text
 
     def execute_query(self,DB_NAME,sql_query):

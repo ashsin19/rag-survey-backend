@@ -43,7 +43,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def upload_report(file: UploadFile = File(...), current_user: str = Depends(actions.verify_token)):
     if not file:
         raise HTTPException(status_code=400, detail="No file provided")
-    
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
     file_path = os.path.join(actions.UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -55,6 +56,8 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
         loader = PyPDFLoader(file_path)
         try:
             documents = loader.load()
+            for doc in documents:
+                doc.metadata["filename"] = file.filename
         except Exception:
             documents = []
 
@@ -74,7 +77,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
         if not chunks:
             raise HTTPException(status_code=500, detail="Error processing document: No valid text extracted.")
 
-        vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY))
+        vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY), metadatas=[{"filename": file.filename}] * len(chunks))
         vector_store.save_local(f"{actions.VECTOR_DB_PATH}/{file.filename}")
         actions.vector_stores[file.filename] = vector_store
     except Exception as e:
@@ -104,6 +107,36 @@ async def compare_reports(request: QueryRequest, current_user: str = Depends(act
         raise HTTPException(status_code=400, detail="Need to have at least 2 reports to compare.")
     res=actions.generate_compare_reports(request.query,actions.vector_stores)
     return res
+
+@app.get("/reports/")
+async def list_reports():
+    """List all uploaded reports."""
+    try:
+        reports = os.listdir(actions.UPLOAD_DIR)
+        return {"reports": reports}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    
+@app.delete("/reports/{filename}")
+async def delete_report(filename: str):
+    """Delete a report and its associated vectors."""
+    file_path = os.path.join(actions.UPLOAD_DIR, filename)
+    vector_store_path = os.path.join(actions.VECTOR_DB_PATH, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    try:
+        # Delete the file
+        os.remove(file_path)
+
+        # Delete the associated vector store
+        if os.path.exists(vector_store_path):
+            shutil.rmtree(vector_store_path)  # Remove the entire directory for the vector store
+
+        return {"message": f"Report '{filename}' and associated vectors deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting report: {str(e)}")
 
 
 @app.get("/")
