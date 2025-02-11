@@ -17,7 +17,7 @@ actions = execute_api()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow your React app's origin
+    allow_origins=["https://my-react-app-369543119888.us-central1.run.app","localhost:8080"],  # Allow your React app's origin
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers

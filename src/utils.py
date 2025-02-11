@@ -16,6 +16,7 @@ from starlette.responses import RedirectResponse
 from datetime import datetime, timedelta
 import bcrypt
 import shutil
+import stat
 import os
 import cv2
 import logging
@@ -40,7 +41,6 @@ class QueryRequest(BaseModel):
     query: str
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 
 class execute_api:
     def __init__(self):
@@ -70,6 +70,30 @@ class execute_api:
             self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
         pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
         logging.basicConfig(level=logging.DEBUG)
+
+    def create_folders_in_src(self,folders):
+        """Create folders in 'src' directory with Linux-specific permission handling."""
+        src_path = os.path.abspath("src")  # Get the absolute path to the 'src' directory
+
+        for folder in folders:
+            folder_path = os.path.join(src_path, folder)
+            
+            if not os.path.exists(folder_path):
+                try:
+                    os.makedirs(folder_path)
+                    print(f"Created folder: {folder_path}")
+                    
+                    # Linux-specific: Set directory permissions to 755
+                    if os.name == "posix":  
+                        os.chmod(folder_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+                        print(f"Set Linux permissions for: {folder_path}")
+                except PermissionError:
+                    print(f"Permission denied: {folder_path}")
+                except OSError as e:
+                    print(f"Error creating folder {folder_path}: {e}")
+            else:
+                print(f"Folder already exists: {folder_path}")
+
 
     def verify_password(self,plain_password: str, hashed_password: str):
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
