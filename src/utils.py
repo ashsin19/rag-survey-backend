@@ -4,6 +4,7 @@ import requests
 import base64
 from dotenv import load_dotenv
 import openai
+import platform
 import re
 from pydantic import BaseModel
 from fastapi import Depends, HTTPException
@@ -55,10 +56,20 @@ class execute_api:
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
         self.vector_stores = {}
-        self.POPPLER_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "poppler", "Library", "bin"))
-        self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
-        logging.basicConfig(level=logging.DEBUG)
+        if platform.system() == "Linux" and shutil.which("pdftotext"):
+            # Use system-installed pdftotext for Docker environment
+            self.POPPLER_PATH = "/usr/bin"
+        else:
+            # Use local Poppler path for development environment
+            self.POPPLER_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "poppler", "Library", "bin"))
+        if platform.system() == "Linux" and shutil.which("tesseract"):
+            # Docker environment: Use system-installed Tesseract binary
+            self.TESSERACT_PATH = "/usr/bin/tesseract"
+        else:
+            # Local environment (Windows): Use the local Tesseract executable path
+            self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
         pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
+        logging.basicConfig(level=logging.DEBUG)
 
     def verify_password(self,plain_password: str, hashed_password: str):
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
