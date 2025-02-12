@@ -23,6 +23,14 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+@app.middleware("http")
+async def redirect_to_https(request: Request, call_next):
+    """Middleware to redirect HTTP requests to HTTPS."""
+    if request.url.scheme == "http":
+        url = request.url.replace(scheme="https")
+        return RedirectResponse(url=str(url))
+    return await call_next(request)
+
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = actions.authenticate_user(form_data.username, form_data.password)
