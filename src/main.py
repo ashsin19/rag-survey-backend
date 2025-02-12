@@ -138,6 +138,18 @@ async def delete_report(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting report: {str(e)}")
 
+@app.get("/list-vectorstores")
+def list_vectorstores():
+    vector_store_path = os.path.join(actions.VECTOR_DB_PATH)
+    if not os.path.exists(vector_store_path):
+        return {"message": "Vectorstore directory not found."}
+
+    # List all subdirectories in the vectorstore directory
+    vectorstores = [
+        directory for directory in os.listdir(vector_store_path)
+        if os.path.isdir(os.path.join(vector_store_path, directory))
+    ]
+    return {"vectorstores": vectorstores}
 
 @app.get("/")
 def read_root():
