@@ -293,6 +293,7 @@ class execute_api:
             )
             print(f"Prompt Template {prompt_template}")
             print(f"Type of variable docs: {type(docs)}")
+            print(f"Documents: {docs}")
             cleaned_docs = [doc.replace("\n", " ").replace("=", "").replace("'", "").replace('"', "") for doc in docs]
             print(f"Cleaned Docs of length {len(cleaned_docs)}: {cleaned_docs}")
             # Prepare the list of documents as a single string

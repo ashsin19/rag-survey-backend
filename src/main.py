@@ -96,7 +96,6 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
         for store_name, store in actions.vector_stores.items():
             results = store.similarity_search(query_prompt, k=4)
             ranked_results = actions.get_document_rerank(3,request.query,results)
-            # all_results.extend([doc.page_content for doc in results])
             all_results.extend(ranked_results)
             print(f" Ranked results: {ranked_results}")
             top_documents = [doc for doc in ranked_results]
