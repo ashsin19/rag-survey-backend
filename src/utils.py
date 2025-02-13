@@ -4,7 +4,6 @@ import os
 import requests
 import base64
 from dotenv import load_dotenv
-import openai
 import platform
 import re
 from pydantic import BaseModel
@@ -28,9 +27,13 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer, util
+from langchain.llms import OpenAI
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
 import torch
 import gc
 import concurrent.futures
+from google.cloud import storage
 
 class Token(BaseModel):
     access_token: str
@@ -58,6 +61,7 @@ class execute_api:
         self.LOGIN_DB = os.getenv("LOGIN_DB")
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
+        self.BUCKET_NAME = os.getenv("BUCKET_NAME")
         self.vector_stores = {}
         if platform.system() == "Linux" and shutil.which("pdftotext"):
             # Use system-installed pdftotext for Docker environment
@@ -121,7 +125,52 @@ class execute_api:
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
         return encoded_jwt
+
+    def upload_vectorstore_to_gcs(self,vectorstore_path, gcs_prefix="vectorstore"):
+        """Upload all files in a FAISS vectorstore directory to Google Cloud Storage."""
+        try: 
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(self.BUCKET_NAME)
+            print(bucket)
+            for root, _, files in os.walk(vectorstore_path):
+                for file in files:
+                    local_file_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(local_file_path, vectorstore_path)  # Preserve folder structure
+                    destination_blob_name = f"{gcs_prefix}/{relative_path}"
+                    
+                    blob = bucket.blob(destination_blob_name)
+                    blob.upload_from_filename(local_file_path)
+                    
+                    print(f"Uploaded {local_file_path} to {destination_blob_name}.")
+        except Exception as e:
+            print(f"Error uploading file: {str(e)}")
+
+
+    def upload_pdf_to_gcs(self,local_file_path, destination_blob_name,foldername):
+        """Upload a PDF to Google Cloud Storage."""
+        try:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(self.BUCKET_NAME)
+            
+            # Create the full path in the bucket
+            destination_blob_name = f"{foldername}/{destination_blob_name}"
+            blob = bucket.blob(destination_blob_name)
+            
+            # Log the local file path and destination
+            print(f"Uploading {local_file_path} to {destination_blob_name}...")
+
+            # Upload the file
+            blob.upload_from_filename(local_file_path)
+            
+            # Verify upload success
+            if blob.exists():
+                print(f"File successfully uploaded to {destination_blob_name}.")
+            else:
+                print(f"File upload failed for {destination_blob_name}.")
     
+        except Exception as e:
+            print(f"Error uploading file: {str(e)}")
+
     def get_user_from_db(self,username: str):
         cursor=self.execute_query(self.LOGIN_DB,f"SELECT username, password FROM users WHERE username = '{username}'")
         for item in cursor:
@@ -223,23 +272,48 @@ class execute_api:
                     common_sentences.append(s1[i])
         return list(set(common_sentences))
 
-    def get_document_rerank(self,n:int, query, docs):
-        """ 
-        Function to re-rank documents with the use of semanttic similarity
-        """
-        reranker_model = SentenceTransformer("sentence-transformers/msmarco-MiniLM-L6-cos-v5") 
-        text_doc = [doc.page_content for doc in docs]
+    def get_document_rerank(self,n: int, query: str, docs):
+        """Re-rank documents using Langchain's OpenAI integration."""
+        try:
+            llm = OpenAI(openai_api_key=self.OPENAI_KEY, temperature=0.3)
+            
+            # Construct the prompt using Langchain's PromptTemplate
+            prompt_template = PromptTemplate(
+                input_variables=["query", "documents"],
+                template="""
+                You are a helpful assistant that ranks documents based on relevance to the query.
+                
+                Query: {query}
+                
+                Documents:
+                {documents}
+                
+                Please return the documents in descending order of relevance with their original content.
+                """
+            )
+            print(f"Prompt Template {prompt_template}")
+            print(f"Type of variable docs: {type(docs)}")
+            cleaned_docs = [doc.replace("\n", " ").replace("=", "").replace("'", "").replace('"', "") for doc in docs]
+            print(f"Cleaned Docs of length {len(cleaned_docs)}: {cleaned_docs}")
+            # Prepare the list of documents as a single string
+            documents_text = "\n".join([f"Document {i + 1}: {doc}" for i, doc in enumerate(cleaned_docs)])
 
-        # Encode query and documents
-        query_embedding = reranker_model.encode(query, convert_to_tensor=True)
-        doc_embeddings = reranker_model.encode(text_doc, convert_to_tensor=True)
+            # Run the LLM with the constructed prompt
+            chain = LLMChain(llm=llm, prompt=prompt_template)
+            response = chain.run({"query": query, "documents": documents_text})
+            
+            return self.parse_reranked_documents(response, n)
+        except Exception as e:
+            print(f"Exception: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error comparing reports: {str(e)}")
 
-        # Compute cosine similarity scores
-        similarity_scores = util.pytorch_cos_sim(query_embedding, doc_embeddings)[0]
-
-        # Sort documents by similarity score
-        sorted_docs = [text_doc[i] for i in similarity_scores.argsort(descending=True)]
-        return sorted_docs[:n] # Will return top n results
+    def parse_reranked_documents(self,response, n):
+        """Parse the response to extract the top N documents."""
+        # Split the response by documents and clean up the text
+        ranked_docs = response.split("Document ")[1:]
+        ranked_docs = [doc.split(": ", 1)[1].strip() for doc in ranked_docs if ": " in doc]
+        
+        return ranked_docs[:n]
 
     def ensure_list(self,value):
         """Ensure the value is always returned as a list."""

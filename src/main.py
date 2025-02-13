@@ -1,9 +1,9 @@
 import os
-import openai
+from langchain.llms import OpenAI
 from utils import *
 import pandas as pd
 # server.py
-
+from langchain.chains import RetrievalQA, load_summarize_chain
 from fastapi import FastAPI, Request, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware 
@@ -48,7 +48,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
     file_path = os.path.join(actions.UPLOAD_DIR, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
+    actions.upload_pdf_to_gcs(file_path,file.filename,actions.UPLOAD_DIR)
     try:
         # Ensure the file exists before processing
         if not os.path.exists(file_path):
@@ -79,6 +79,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
 
         vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY), metadatas=[{"filename": file.filename}] * len(chunks))
         vector_store.save_local(f"{actions.VECTOR_DB_PATH}/{file.filename}")
+        actions.upload_vectorstore_to_gcs(actions.VECTOR_DB_PATH,actions.VECTOR_DB_PATH)
         actions.vector_stores[file.filename] = vector_store
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
@@ -91,13 +92,22 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
     try:
         all_results = []
         query_prompt = actions.construct_query_prompt(request.query)
-        for store in actions.vector_stores.values():
-            results = store.similarity_search(query_prompt, k=10)
-            ranked_results = actions.get_document_rerank(3,query_prompt,results)
+        llm = OpenAI(openai_api_key=actions.OPENAI_KEY, temperature=0.3)
+        for store_name, store in actions.vector_stores.items():
+            results = store.similarity_search(query_prompt, k=4)
+            ranked_results = actions.get_document_rerank(3,request.query,results)
             # all_results.extend([doc.page_content for doc in results])
             all_results.extend(ranked_results)
-        
-        return {"results": all_results}
+            print(f" Ranked results: {ranked_results}")
+            top_documents = [doc for doc in ranked_results]
+            if top_documents:
+                summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
+                summary = summarize_chain.run("\n".join(top_documents))
+                print(f"Summary for {store_name}: {summary}")
+            retriever = store.as_retriever()
+            qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+            answer = qa_chain.run(request.query)
+        return {"summary": summary, "answer": answer, "documents": [doc for doc in all_results]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
