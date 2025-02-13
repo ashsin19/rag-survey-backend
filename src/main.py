@@ -3,6 +3,7 @@ from langchain.llms import OpenAI
 from utils import *
 import pandas as pd
 # server.py
+from langchain.schema import Document
 from langchain.chains import RetrievalQA, load_summarize_chain
 from fastapi import FastAPI, Request, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
@@ -22,6 +23,23 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
+
+@app.on_event("startup")
+async def startup_event():
+    filenames = actions.list_filenames_in_gcs()
+    if not filenames:
+        print("No vector stores found in GCS. Skip loading.")
+        return
+    for filename in filenames:
+        try:
+            index, metadata = actions.load_faiss_from_gcs(filename)
+            actions.vector_stores[filename] = {
+                "index": index,
+                "metadata": metadata
+            }
+        except Exception as e:
+            print(f"Failed to load vector store for {filename}: {e}")
+
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -100,8 +118,9 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             print(f" Ranked results: {ranked_results}")
             top_documents = [doc for doc in ranked_results]
             if top_documents:
+                documents = [Document(page_content=doc) for doc in top_documents]
                 summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
-                summary = summarize_chain.run("\n".join(top_documents))
+                summary = summarize_chain.run(documents)
                 print(f"Summary for {store_name}: {summary}")
             retriever = store.as_retriever()
             qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
@@ -121,29 +140,48 @@ async def compare_reports(request: QueryRequest, current_user: str = Depends(act
 async def list_reports():
     """List all uploaded reports."""
     try:
-        reports = os.listdir(actions.UPLOAD_DIR)
-        return {"reports": reports}
+        bucket = actions.storage_client.bucket(actions.BUCKET_NAME)
+        blobs = bucket.list_blobs(prefix=actions.UPLOAD_DIR)
+        reports = set()
+        for blob in blobs:
+            parts = blob.name.split("/")
+            if len(parts) > 1:  # Ensure it is not the root folder
+                report_name = parts[-1]
+                if report_name:  # Avoid empty strings
+                    reports.add(report_name)
+        
+        return {"reports": list(reports)}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
     
 @app.delete("/reports/{filename}")
 async def delete_report(filename: str):
     """Delete a report and its associated vectors."""
-    file_path = os.path.join(actions.UPLOAD_DIR, filename)
-    vector_store_path = os.path.join(actions.VECTOR_DB_PATH, filename)
-
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Report not found")
-
+    
+    bucket = actions.storage_client.bucket(actions.BUCKET_NAME)
+    
     try:
-        # Delete the file
-        os.remove(file_path)
+        # Delete the report from uploaded_reports
+        report_blob = bucket.blob(f"{actions.UPLOAD_DIR}/{filename}")
+        if not report_blob.exists():
+            raise HTTPException(status_code=404, detail=f"Report '{filename}' not found in GCS.")
+        
+        report_blob.delete()
+        print(f"Deleted report: {actions.UPLOAD_DIR}/{filename}")
 
-        # Delete the associated vector store
-        if os.path.exists(vector_store_path):
-            shutil.rmtree(vector_store_path)  # Remove the entire directory for the vector store
+        # Delete all associated vector store files for the report
+        blobs_to_delete = bucket.list_blobs(prefix=f"{actions.VECTOR_DB_PATH}/{filename}")
+        vector_store_deleted = False
+        for blob in blobs_to_delete:
+            blob.delete()
+            vector_store_deleted = True
+            print(f"Deleted vector store file: {blob.name}")
+        
+        if not vector_store_deleted:
+            print(f"No vector store found for '{filename}'.")
+        
+        return {"message": f"Report '{filename}' and associated vectors deleted successfully from GCS."}
 
-        return {"message": f"Report '{filename}' and associated vectors deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting report: {str(e)}")
 

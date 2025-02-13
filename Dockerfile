@@ -24,7 +24,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-RUN pip install pytest pytest-asyncio httpx google-cloud-storage
+RUN pip install pytest pytest-asyncio httpx google-cloud-storage google-cloud-vision
 
 # Copy the rest of the application
 COPY . .

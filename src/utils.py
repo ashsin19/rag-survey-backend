@@ -32,8 +32,13 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 import torch
 import gc
+import numpy as np
 import concurrent.futures
+import faiss
 from google.cloud import storage
+from google.cloud import vision
+import io
+import pickle
 
 class Token(BaseModel):
     access_token: str
@@ -62,6 +67,7 @@ class execute_api:
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
         self.BUCKET_NAME = os.getenv("BUCKET_NAME")
+        self.storage_client = storage.Client()
         self.vector_stores = {}
         if platform.system() == "Linux" and shutil.which("pdftotext"):
             # Use system-installed pdftotext for Docker environment
@@ -129,9 +135,8 @@ class execute_api:
     def upload_vectorstore_to_gcs(self,vectorstore_path, gcs_prefix="vectorstore"):
         """Upload all files in a FAISS vectorstore directory to Google Cloud Storage."""
         try: 
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(self.BUCKET_NAME)
-            print(bucket)
+            
+            bucket = self.storage_client.bucket(self.BUCKET_NAME)
             for root, _, files in os.walk(vectorstore_path):
                 for file in files:
                     local_file_path = os.path.join(root, file)
@@ -149,8 +154,7 @@ class execute_api:
     def upload_pdf_to_gcs(self,local_file_path, destination_blob_name,foldername):
         """Upload a PDF to Google Cloud Storage."""
         try:
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(self.BUCKET_NAME)
+            bucket = self.storage_client.bucket(self.BUCKET_NAME)
             
             # Create the full path in the bucket
             destination_blob_name = f"{foldername}/{destination_blob_name}"
@@ -171,6 +175,34 @@ class execute_api:
         except Exception as e:
             print(f"Error uploading file: {str(e)}")
 
+    def list_filenames_in_gcs(self):
+        """List unique filenames (folders) under the vectorstore root in GCS."""
+        bucket = self.storage_client.bucket(self.BUCKET_NAME)
+        
+        blobs = bucket.list_blobs(prefix=self.VECTOR_DB_PATH)
+        filenames = set()
+        
+        for blob in blobs:
+            parts = blob.name.split("/")
+            if len(parts) > 1 and parts[1].strip():  # Ensure it's not the root folder itself
+                filenames.add(parts[1])  # Add the second part of the path (filename folder)
+        
+        return list(filenames)
+
+    def load_faiss_from_gcs(self,filename):
+        """Load FAISS index directly from GCS for a given filename."""
+        bucket = self.storage_client.bucket(self.BUCKET_NAME)
+        index_blob = bucket.blob(f"{self.VECTOR_DB_PATH}/{filename}/index.faiss")
+        index_bytes = index_blob.download_as_bytes()
+        if len(index_bytes) == 0:
+            raise Exception(f"index.faiss for '{filename}' is empty.")
+        index_array = np.frombuffer(index_bytes, dtype=np.uint8)
+        index = faiss.deserialize_index(index_array)
+        metadata_blob = bucket.blob(f"{self.VECTOR_DB_PATH}/{filename}/index.pkl")
+        metadata_bytes = metadata_blob.download_as_bytes()
+        metadata = pickle.loads(metadata_bytes)
+        return index, metadata
+
     def get_user_from_db(self,username: str):
         cursor=self.execute_query(self.LOGIN_DB,f"SELECT username, password FROM users WHERE username = '{username}'")
         for item in cursor:
@@ -185,6 +217,7 @@ class execute_api:
 
     def extract_text_from_images(self,pdf_path):
         """Extracts text using OCR from scanned PDF images."""
+        client = vision.ImageAnnotatorClient()
         extracted_text = []
         # Use a temporary directory for image files
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -196,13 +229,25 @@ class execute_api:
                 dpi=150,
                 strict=False
             )
+            for image in images:
+                # Convert PIL Image to bytes
+                image_byte_array = io.BytesIO()
+                image.save(image_byte_array, format='JPEG')
+                image_content = image_byte_array.getvalue()
+
+                image = vision.Image(content=image_content)
+                response = client.text_detection(image=image)
+
+                if response.error.message:
+                    raise Exception(f"Vision API error: {response.error.message}")
+                extracted_text.append(response.full_text_annotation.text)
             
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                results = list(executor.map(self.process_image, images))
+            # with concurrent.futures.ThreadPoolExecutor() as executor:
+            #     results = list(executor.map(self.process_image, images))
         
-            extracted_text = "\n".join(results)
+            # extracted_text = "\n".join(results)
         # Join all extracted text into a single string
-        return extracted_text
+        return "\n".join(extracted_text)
 
     def execute_query(self,DB_NAME,sql_query):
         """Execute a SQL query against DBHub.io."""
@@ -294,7 +339,12 @@ class execute_api:
             print(f"Prompt Template {prompt_template}")
             print(f"Type of variable docs: {type(docs)}")
             print(f"Documents: {docs}")
-            cleaned_docs = [doc.replace("\n", " ").replace("=", "").replace("'", "").replace('"', "") for doc in docs]
+            for fdoc in docs:
+                try:
+                    print(fdoc.page_content)
+                except:
+                    raise HTTPException(status_code=500, detail=f"Error comparing reports: {str(e)}")
+            cleaned_docs = [ doc.page_content.replace("\n", " ").replace("=", "").replace("'", "").replace('"', "") for doc in docs ]
             print(f"Cleaned Docs of length {len(cleaned_docs)}: {cleaned_docs}")
             # Prepare the list of documents as a single string
             documents_text = "\n".join([f"Document {i + 1}: {doc}" for i, doc in enumerate(cleaned_docs)])
