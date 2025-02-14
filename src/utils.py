@@ -34,12 +34,13 @@ import torch
 import gc
 import numpy as np
 import concurrent.futures
-import faiss
 from google.cloud import storage
 from google.cloud import vision
 from pydantic import BaseModel
 import io
-import pickle
+import re
+from collections import Counter
+from nltk.stem import WordNetLemmatizer
 
 class Token(BaseModel):
     access_token: str
@@ -70,6 +71,15 @@ class execute_api:
         self.BUCKET_NAME = os.getenv("BUCKET_NAME")
         self.storage_client = storage.Client()
         self.vector_stores = {}
+        self.lemmatizer = WordNetLemmatizer()
+        self.stop_words = {
+    "a", "an", "the", "and", "but", "or", "nor", "so", "yet", "for", "about",
+    "above", "after", "against", "between", "from", "in", "into", "on", "with",
+    "we", "us", "it", "he", "she", "they", "is", "are", "was", "were", "been",
+    "by", "to", "of", "at", "before", "after", "over", "under", "as", "if", "because", 
+    "once", "while", "just", "now", "then", "too", "very", "can", "could", 
+    "shall", "should", "will", "would", "may", "might", "must", "do", "does", "did"
+}
         if platform.system() == "Linux" and shutil.which("pdftotext"):
             # Use system-installed pdftotext for Docker environment
             self.POPPLER_PATH = "/usr/bin"
@@ -249,6 +259,12 @@ class execute_api:
             # extracted_text = "\n".join(results)
         # Join all extracted text into a single string
         return "\n".join(extracted_text)
+    
+    def tokenize_words(self,text):
+        """Clean text, lemmatize, and tokenize into words while filtering stop words."""
+        words = re.findall(r'\b\w+\b', text.lower())  # Extract words using regex
+        lemmatized_words = [self.lemmatizer.lemmatize(word) for word in words if word not in self.stop_words]
+        return lemmatized_words
 
     def execute_query(self,DB_NAME,sql_query):
         """Execute a SQL query against DBHub.io."""
@@ -282,11 +298,12 @@ class execute_api:
             content1.update(self.split_text_to_sentences(doc.page_content))
         for doc in res2:
             content2.update(self.split_text_to_sentences(doc.page_content))
-        common_sentences = self.extract_common_sentences_cosine(list(content1), list(content2))
+        # common_sentences = self.extract_common_sentences_cosine(list(content1), list(content2))
+        common_words = self.extract_common_words(list(content1), list(content2))
         unique_to_report1 = content1 - content2
         unique_to_report2 = content2 - content1
         return {
-            "common_insights": list(common_sentences),
+            "common_insights": list(common_words),
             "unique_in_report_1": list(unique_to_report1),
             "unique_in_report_2": list(unique_to_report2)
         }
@@ -317,6 +334,16 @@ class execute_api:
                 if scores[i][j] > threshold:
                     common_sentences.append(s1[i])
         return list(set(common_sentences))
+    
+    def extract_common_words(self,content1, content2):
+        """Extract common words between two sets of content with their frequencies."""
+        words1 = Counter(self.tokenize_words(" ".join(content1)))
+        words2 = Counter(self.tokenize_words(" ".join(content2)))
+
+        common_words_set = {word for word in words1 if word in words2}
+        common_words_list = list(common_words_set)
+        return common_words_list
+
 
     def get_document_rerank(self,n: int, query: str, docs):
         """Re-rank documents using Langchain's OpenAI integration."""
