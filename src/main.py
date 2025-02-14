@@ -32,11 +32,16 @@ async def startup_event():
         return
     for filename in filenames:
         try:
-            index, metadata = actions.load_faiss_from_gcs(filename)
-            actions.vector_stores[filename] = {
-                "index": index,
-                "metadata": metadata
-            }
+            local_vectorstore_path = actions.download_vectorstore_from_gcs(filename)
+            vector_store = FAISS.load_local(
+                local_vectorstore_path, 
+                OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY),
+                allow_dangerous_deserialization=True  # In final production version, this will require an additional step to compute and match SHA256 hash values. 
+                                                      #To do that we need to securely store the hash values
+                                                      # We can also configure GCS to prevent unauthorized access
+            )
+            actions.vector_stores[filename] = vector_store
+            print(f"Vector Store Loaded for {filename}")        
         except Exception as e:
             print(f"Failed to load vector store for {filename}: {e}")
 
@@ -179,7 +184,11 @@ async def delete_report(filename: str):
         
         if not vector_store_deleted:
             print(f"No vector store found for '{filename}'.")
-        
+        removed_vector_store = actions.vector_stores.pop(filename, None)
+        if removed_vector_store:
+            print(f"Removed '{filename}' from vector_stores.")
+        else:
+            print(f"'{filename}' not found in vector_stores.")
         return {"message": f"Report '{filename}' and associated vectors deleted successfully from GCS."}
 
     except Exception as e:

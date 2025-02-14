@@ -188,20 +188,20 @@ class execute_api:
                 filenames.add(parts[1])  # Add the second part of the path (filename folder)
         
         return list(filenames)
-
-    def load_faiss_from_gcs(self,filename):
-        """Load FAISS index directly from GCS for a given filename."""
+    
+    def download_vectorstore_from_gcs(self,filename):
+        """Download vector store files from GCS and save them locally."""
         bucket = self.storage_client.bucket(self.BUCKET_NAME)
-        index_blob = bucket.blob(f"{self.VECTOR_DB_PATH}/{filename}/index.faiss")
-        index_bytes = index_blob.download_as_bytes()
-        if len(index_bytes) == 0:
-            raise Exception(f"index.faiss for '{filename}' is empty.")
-        index_array = np.frombuffer(index_bytes, dtype=np.uint8)
-        index = faiss.deserialize_index(index_array)
-        metadata_blob = bucket.blob(f"{self.VECTOR_DB_PATH}/{filename}/index.pkl")
-        metadata_bytes = metadata_blob.download_as_bytes()
-        metadata = pickle.loads(metadata_bytes)
-        return index, metadata
+
+        local_path = f"/tmp/{self.VECTOR_DB_PATH}/{filename}"
+        os.makedirs(local_path, exist_ok=True)
+
+        blobs = bucket.list_blobs(prefix=f"{self.VECTOR_DB_PATH}/{filename}/")
+        for blob in blobs:
+            local_file_path = os.path.join(local_path, blob.name.split("/")[-1])
+            blob.download_to_filename(local_file_path)
+            print(f"Downloaded {blob.name} to {local_file_path}")
+        return local_path
 
     def get_user_from_db(self,username: str):
         cursor=self.execute_query(self.LOGIN_DB,f"SELECT username, password FROM users WHERE username = '{username}'")
