@@ -26,6 +26,8 @@ RUN pip install --upgrade pip \
 
 RUN pip install pytest pytest-asyncio httpx google-cloud-storage google-cloud-vision nltk
 
+RUN python -m nltk.downloader wordnet
+
 # Copy the rest of the application
 COPY . .
 

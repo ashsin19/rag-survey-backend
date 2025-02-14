@@ -40,7 +40,12 @@ from pydantic import BaseModel
 import io
 import re
 from collections import Counter
+import nltk
 from nltk.stem import WordNetLemmatizer
+try:
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('wordnet')
 
 class Token(BaseModel):
     access_token: str
