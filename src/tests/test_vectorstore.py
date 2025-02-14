@@ -1,9 +1,11 @@
 import pytest
 import os
+from dotenv import load_dotenv
 
 
-
-VECTORSTORE_PATH="vectorstore"
+load_dotenv(dotenv_path=os.path.join(os.getcwd(), "../src/.env")) 
+VECTORSTORE_PATH = os.getenv("VECTOR_DB_PATH")
+print(VECTORSTORE_PATH)
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_vectorstore():
