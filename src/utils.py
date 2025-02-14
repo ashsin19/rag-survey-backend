@@ -37,6 +37,7 @@ import concurrent.futures
 import faiss
 from google.cloud import storage
 from google.cloud import vision
+from pydantic import BaseModel
 import io
 import pickle
 

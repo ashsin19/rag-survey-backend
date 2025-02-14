@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware 
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pathlib import Path
 
 
 # Create FastAPI instance
@@ -26,6 +26,10 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
+    upload_directory = Path(actions.UPLOAD_DIR)
+    vector_store_directory = Path(actions.VECTOR_DB_PATH)
+    upload_directory.mkdir(parents=True, exist_ok=True)
+    vector_store_directory.mkdir(parents=True,exist_ok=True)
     filenames = actions.list_filenames_in_gcs()
     if not filenames:
         print("No vector stores found in GCS. Skip loading.")
@@ -69,6 +73,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
     file_path = os.path.join(actions.UPLOAD_DIR, file.filename)
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     actions.upload_pdf_to_gcs(file_path,file.filename,actions.UPLOAD_DIR)
