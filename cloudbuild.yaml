@@ -15,6 +15,11 @@ steps:
 - name: 'docker'
   args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', '.' ]
 
+- name: 'docker'
+  args: [
+    'push',
+    'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA'
+  ]
 # By default, all built docker images will be lost once the build is complete.
 # Rather than writing a build step to push this image, you can simply list the
 # image below and it will automatically be uploaded to Google Cloud Container
@@ -22,11 +27,7 @@ steps:
 - name: 'docker'
   args: ['run', '--rm', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
 
-- name: 'docker'
-  args: [
-    'push',
-    'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA'
-  ]
+
 
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   args: [

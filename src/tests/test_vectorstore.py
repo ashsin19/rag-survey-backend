@@ -1,13 +1,9 @@
 import pytest
-from httpx import AsyncClient
 import os
-import shutil
-from dotenv import load_dotenv
 
 
-load_dotenv(dotenv_path=os.path.join(os.getcwd(), "../src/.env")) 
-VECTORSTORE_PATH = os.getenv("VECTOR_DB_PATH")
-print(VECTORSTORE_PATH)
+
+VECTORSTORE_PATH="vectorstore"
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_vectorstore():
