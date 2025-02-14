@@ -13,18 +13,34 @@
 # limitations under the License.
 steps:
 - name: 'docker'
-  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:latest', '.' ]
+  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', '.' ]
 
 # By default, all built docker images will be lost once the build is complete.
 # Rather than writing a build step to push this image, you can simply list the
 # image below and it will automatically be uploaded to Google Cloud Container
 # Registry.
+- name: 'docker'
+  args: ['run', '--rm', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
+
+- name: 'docker'
+  args: [
+    'push',
+    'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA'
+  ]
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: [
+        'gcloud', 'run', 'deploy', 'python-rag-app',
+        '--image', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA',
+        '--platform', 'managed',
+        '--region', 'us-central1',
+        '--allow-unauthenticated'
+      ]
 images:
-- 'gcr.io/$PROJECT_ID/python-rag-app:latest'
+- 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
 
 # You can organize your builds with tags
-tags: ['gcp-cloud-build-rag-py-build']
-
-# You can configure more options than the ones listed here. Visit
-# https://cloud.google.com/cloud-build/docs/build-config to see the full list of
-# available options.
+tags: ['gcp-cloud-build-rag-py-build'] 
