@@ -131,11 +131,12 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
                 documents = [Document(page_content=doc) for doc in top_documents]
                 summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
                 summary = summarize_chain.run(documents)
+                summary_wordcloud = actions.generate_wordcloud(summary)
                 print(f"Summary for {store_name}: {summary}")
             retriever = store.as_retriever()
             qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
             answer = qa_chain.run(request.query)
-        return {"summary": summary, "answer": answer, "documents": [doc for doc in all_results]}
+        return {"summary": summary, "answer": answer, "documents": [doc for doc in all_results], "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
