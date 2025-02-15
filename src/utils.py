@@ -37,7 +37,10 @@ import concurrent.futures
 from google.cloud import storage
 from google.cloud import vision
 from pydantic import BaseModel
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 import io
+import base64
 import re
 from collections import Counter
 import nltk
@@ -449,6 +452,19 @@ class execute_api:
         You should return the improved queries only. Avoid any unnecessary detail
         """
         return prompt_template
+    
+    def generate_wordcloud(self,text):
+        """Generate a word cloud from the given text and return it as a base64 string."""
+        wordcloud = WordCloud(width=800, height=400, background_color="black").generate(text)
+        buffer = io.BytesIO()
+        plt.figure(figsize=(10, 5))
+        plt.imshow(wordcloud, interpolation="bilinear")
+        plt.axis("off")
+        plt.savefig(buffer, format="png")
+        buffer.seek(0)
+        img_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+        buffer.close()
+        return img_base64
       
 
     def verify_token(self,token: str = Depends(oauth2_scheme)):
