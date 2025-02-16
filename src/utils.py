@@ -46,6 +46,7 @@ import re
 from collections import Counter
 import nltk
 from nltk.stem import WordNetLemmatizer
+import chardet
 try:
     nltk.data.find('corpora/wordnet')
 except LookupError:
@@ -229,13 +230,16 @@ class execute_api:
             print(f"Downloaded {blob.name} to {local_file_path}")
         return local_path
 
-    def get_user_from_db(self,username: str):
-        cursor=self.execute_query(self.LOGIN_DB,f"SELECT username, password FROM users WHERE username = '{username}'")
-        for item in cursor:
-            result = True
-            if result:
-                return {"username": item[0]['Value'], "hashed_password": item[1]['Value']}
-        return None   
+    def get_user_from_gcs(self, username: str):
+        """Fetch user credentials from a JSON file in GCS."""
+        try:
+            users = self.fetch_users_from_gcs()
+            for user in users:
+                if user['username'] == username:
+                    return {"username": user['username'], "hashed_password": user['hashed_password']}
+        except Exception as e:
+            print(f"Error fetching user data: {e}")
+        return None  
     
     def process_image(self,img):
         """Function to extract text from a single image using pytesseract."""
@@ -281,27 +285,23 @@ class execute_api:
         lemmatized_words = [self.lemmatizer.lemmatize(word) for word in words if word not in self.stop_words]
         return lemmatized_words
 
-    def execute_query(self,DB_NAME,sql_query):
-        """Execute a SQL query against DBHub.io."""
-        url = f"{self.BASE_URL}/query"
-        query_bytes = sql_query.encode("ascii") 
-        query_base64 = base64.b64encode(query_bytes) 
-        # Prepare the payload
-        params = {
-            'apikey': self.API_KEY,
-            'dbowner': self.OWNER_NAME,
-            'dbname': DB_NAME,
-            'sql': query_base64
-        }
-        # Make the POST request
-        response = requests.post(url, params)
-
-        # Check if the response is successful
-        if response.status_code == 200:
-            return response.json()  # Return the JSON response if successful
-        else:
-            print(f"Error: {response.status_code} - {response.text}")
-            return None
+    def fetch_users_from_gcs(self):
+        """Download and parse the JSON file from GCS."""
+        try: 
+            client = storage.Client()
+            bucket = client.bucket(self.BUCKET_NAME)
+            blob = bucket.blob(self.USER_DATA_FILE)
+            # Download the file content as a string
+            json_bytes = blob.download_as_bytes()
+            result = chardet.detect(json_bytes) 
+            encoding = result['encoding']
+            json_data = json_bytes.decode(encoding)
+            
+            # Parse the JSON data
+            user_data = json.loads(json_data)
+            return user_data["users"]
+        except Exception as e:
+            return None   
     
     def get_report_comparison(self, query, rpt1, rpt2):
         res1 = rpt1.similarity_search(query, k=7)
