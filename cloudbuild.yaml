@@ -12,8 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 steps:
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      echo "Fetching secrets..."
+      export OPENAI_KEY=$(gcloud secrets versions access latest --secret="OPENAI_KEY")
+      export SQLITE_KEY=$(gcloud secrets versions access latest --secret="SQLITE_KEY")
+      export SECRET_KEY=$(gcloud secrets versions access latest --secret="SECRET_KEY")
+      export ALGORITHM=$(gcloud secrets versions access latest --secret="ALGORITHM")
+      echo "Secrets fetched successfully."
+
+
 - name: 'docker'
-  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', '.' ]
+  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA','--build-arg', 'OPENAI_KEY=$OPENAI_KEY', '--build-arg', 'SQLITE_KEY=$SQLITE_KEY','--build-arg', 'SECRET_KEY=$SECRET_KEY','--build-arg', 'ALGORITHM=$ALGORITHM','.' ]
 
 - name: 'docker'
   args: [
