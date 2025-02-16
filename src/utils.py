@@ -143,7 +143,7 @@ class execute_api:
         load_dotenv()
 
     def authenticate_user(self,username: str, password: str):
-        user = self.get_user_from_db(username)
+        user = self.get_user_from_gcs(username)
         if user is None:
             return False
         if not self.verify_password(password, user['hashed_password'].encode('utf-8')):
