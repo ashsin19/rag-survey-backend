@@ -24,12 +24,22 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-RUN pip install pytest pytest-asyncio httpx google-cloud-storage google-cloud-vision nltk wordcloud
+RUN pip install pytest pytest-asyncio httpx google-cloud-storage google-cloud-vision nltk wordcloud matplotlib
 
 RUN python -m nltk.downloader wordnet
 
 # Copy the rest of the application
 COPY . .
+
+ARG OPENAI_KEY
+ARG SQLITE_KEY
+ARG SECRET_KEY
+ARG ALGORITHM
+
+ENV OPENAI_KEY=$OPENAI_KEY
+ENV SQLITE_KEY=$SQLITE_KEY
+ENV SECRET_KEY=$SECRET_KEY
+ENV ALGORITHM=$ALGORITHM
 
 WORKDIR /app/src
 
