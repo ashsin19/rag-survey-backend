@@ -79,6 +79,7 @@ class execute_api:
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
         self.BUCKET_NAME = os.getenv("BUCKET_NAME")
+        self.USER_DATA_FILE = "user_data.json"
         self.storage_client = storage.Client()
         self.vector_stores = {}
         self.lemmatizer = WordNetLemmatizer()
