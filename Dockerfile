@@ -31,16 +31,6 @@ RUN python -m nltk.downloader wordnet
 # Copy the rest of the application
 COPY . .
 
-ARG OPENAI_KEY
-ARG SQLITE_KEY
-ARG SECRET_KEY
-ARG ALGORITHM
-
-ENV OPENAI_KEY=$OPENAI_KEY
-ENV SQLITE_KEY=$SQLITE_KEY
-ENV SECRET_KEY=$SECRET_KEY
-ENV ALGORITHM=$ALGORITHM
-
 WORKDIR /app/src
 
 # Expose the port Cloud Run will use

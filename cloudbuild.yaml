@@ -26,7 +26,7 @@ steps:
 
 
 - name: 'docker'
-  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA','--build-arg', 'OPENAI_KEY=$OPENAI_KEY', '--build-arg', 'SQLITE_KEY=$SQLITE_KEY','--build-arg', 'SECRET_KEY=$SECRET_KEY','--build-arg', 'ALGORITHM=$ALGORITHM','.' ]
+  args: [ 'build','-f','./Dockerfile', '-t', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA','.' ]
 
 - name: 'docker'
   args: [
@@ -38,7 +38,7 @@ steps:
 # image below and it will automatically be uploaded to Google Cloud Container
 # Registry.
 - name: 'docker'
-  args: ['run', '--rm', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
+  args: ['run', '--rm','-e', 'OPENAI_KEY=$OPENAI_KEY','-e', 'SQLITE_KEY=$SQLITE_KEY','-e', 'SECRET_KEY=$SECRET_KEY','-e', 'ALGORITHM=$ALGORITHM', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
 
 
 
