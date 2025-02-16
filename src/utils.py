@@ -36,6 +36,7 @@ import numpy as np
 import concurrent.futures
 from google.cloud import storage
 from google.cloud import vision
+from google.cloud import secretmanager
 from pydantic import BaseModel
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -66,13 +67,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 class execute_api:
     def __init__(self):
         self.load_dotenv()
-        self.OPENAI_KEY = os.getenv("OPENAI_KEY")
+        self.OPENAI_KEY = self.get_secret("OPENAI_KEY")
+        self.API_KEY=self.get_secret("SQLITE_KEY")
+        self.SECRET_KEY = self.get_secret("SECRET_KEY")
+        self.ALGORITHM = self.get_secret("ALGORITHM")
         self.table_name=os.getenv("TBL_NAME")
-        self.API_KEY=os.getenv("SQLITE_KEY")
         self.OWNER_NAME = os.getenv("DB_OWNER")
         self.BASE_URL = os.getenv("DB_BASEURL")
-        self.SECRET_KEY = os.getenv("SECRET_KEY")
-        self.ALGORITHM = os.getenv("ALGORITHM")
         self.LOGIN_DB = os.getenv("LOGIN_DB")
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR")
         self.VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH")
@@ -102,6 +103,12 @@ class execute_api:
             self.TESSERACT_PATH = os.path.abspath(os.path.join(os.getcwd(), "..", "Tesseract-OCR", "tesseract.exe"))
         pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
         logging.basicConfig(level=logging.DEBUG)
+
+    def get_secret(self,secret_id):
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/369543119888/secrets/{secret_id}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
 
     def create_folders_in_src(self,folders):
         """Create folders in 'src' directory with Linux-specific permission handling."""
