@@ -38,7 +38,7 @@ steps:
 # image below and it will automatically be uploaded to Google Cloud Container
 # Registry.
 - name: 'docker'
-  args: ['run', '--rm','-e', 'OPENAI_KEY=$OPENAI_KEY','-e', 'SQLITE_KEY=$SQLITE_KEY','-e', 'SECRET_KEY=$SECRET_KEY','-e', 'ALGORITHM=$ALGORITHM', 'gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
+  args: ['run', '--rm','gcr.io/$PROJECT_ID/python-rag-app:$SHORT_SHA', 'pytest', 'tests/']
 
 
 
