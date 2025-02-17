@@ -357,8 +357,7 @@ class execute_api:
         words2 = Counter(self.tokenize_words(" ".join(content2)))
 
         common_words_set = {word for word in words1 if word in words2}
-        common_words_list = list(common_words_set)
-        return common_words_list
+        return common_words_set
 
 
     def get_document_rerank(self,n: int, query: str, docs):
@@ -427,7 +426,7 @@ class execute_api:
                     "report_1": rept_keys[x],
                     "report_2": rept_keys[y],
                     "comparison": {
-                        "common_insights": [],
+                        "common_insights": self.ensure_list(self.remove_unicode_characters(comparison["common_insights"])),
                         "unique_in_report_1": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_1"])),
                         "unique_in_report_2": self.ensure_list(self.remove_unicode_characters(comparison["unique_in_report_2"]))
                         }
