@@ -6,9 +6,13 @@ This Python backend is built using FastAPI and supports a Retrieval-Augmented Ge
 1. Features
 2. Technology Stack
 3. Setup Instructions
+
     3a. Prerequisites
+
     3b. Installation
+
     3c. Running the Server
+    
 4. API Endpoints
 5. Cloud Integration
 6. Testing
