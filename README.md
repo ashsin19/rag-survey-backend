@@ -19,27 +19,44 @@ This Python backend is built using FastAPI and supports a Retrieval-Augmented Ge
 ## 1. FEATURES
 
 PDF Upload and Text Extraction: Supports both direct text-based PDFs and scanned PDFs using OCR (Tesseract or Google Cloud Vision).
+
 Vector Search: Uses FAISS for document similarity search and retrieval.
+
 Summarization and Q&A: Summarizes documents and answers queries using OpenAI's GPT models.
+
 Comparison of Reports: Extracts common insights and unique content between two uploaded reports.
+
 Google Cloud Integration:
+
 Google Cloud Storage for storing PDFs and vector stores.
+
 Google Cloud Secret Manager for secure management of sensitive keys.
+
 JWT Authentication for secure access to the backend.
+
 Scalable Architecture: Deployable on Google Cloud Run.
 
 ## 2. TECHNOLOGY STACK
 
-Python 3.12
-FastAPI – For building the web API.
-FAISS – For vector search.
-PyPDF2 / PyPDFLoader – For processing PDF files.
-Pytesseract / Google Cloud Vision – For OCR processing.
-OpenAI GPT – For summarization and Q&A tasks.
-Google Cloud Services:
-Cloud Storage
-Secret Manager
-Cloud Run
+a. Python 3.12
+
+b. FastAPI – For building the web API.
+
+c. FAISS – For vector search.
+
+d. PyPDF2 / PyPDFLoader – For processing PDF files.
+
+e. Pytesseract / Google Cloud Vision – For OCR processing.
+
+f. OpenAI GPT – For summarization and Q&A tasks.
+
+g. Google Cloud Services:
+
+h. Cloud Storage
+
+i. Secret Manager
+
+j. Cloud Run
 
 ## 3. SETUP INSTRUMENTS
 
@@ -52,12 +69,17 @@ Docker installed (optional for deployment).
 Google Cloud SDK installed and configured.
 
 Environment Variables
+
 You need to set the following environment variables. These can be managed using Google Cloud Secret Manager and .env (for non-sensitive variables):
 
 Variable Name	Description
+
 OPENAI_KEY	OpenAI API Key
+
 SQLITE_KEY	Key for SQLite encryption (if applicable)
+
 SECRET_KEY	JWT secret key for authentication
+
 ALGORITHM	Algorithm for JWT (e.g., HS256)
 
 ### 3b. INSTALLATION
@@ -93,20 +115,23 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ## 4. API ENDPOINTS
 
 ### Authentication
-Method	Endpoint	    Description
-POST	/token	        Obtain a JWT access token.
+|Method |Endpoint      | Description                           | 
+|------ |--------------|---------------------------------------|
+|POST   |/token	       | Obtain a JWT access token.            |
 
 ### Reports
-Method	Endpoint	    Description
-POST	/upload/	    Upload a PDF report.
-GET	    /reports/	    List all uploaded reports.
-DELETE	/reports/{id}	Delete a report and its vector store.
-POST    /stats/         Get dynamic stats of reports processed
+|Method	|Endpoint	    |Description                            |
+|-------|---------------|---------------------------------------|
+|POST	|/upload/	    |Upload a PDF report.                   |
+|GET	|/reports/	    |List all uploaded reports.             |
+|DELETE	|/reports/{id}	|Delete a report and its vector store.  |
+|POST   |/stats/        |Get dynamic stats of reports processed |
 
 ### Query and Compare
-Method	Endpoint	    Description
-POST	/query/	        Query a report and get insights.
-POST	/compare/	    Compare two reports and get results.
+|Method	|Endpoint	    |Description                            |
+|-------|---------------|---------------------------------------|
+|POST	|/query/	    |Query a report and get insights.       |
+|POST	|/compare/	    |Compare two reports and get results.   |
 
 ## 5. CLOUD INTEGRATIONS
 
