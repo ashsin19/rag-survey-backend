@@ -18,69 +18,66 @@ This Python backend is built using FastAPI and supports a Retrieval-Augmented Ge
 
 ## 1. FEATURES
 
-PDF Upload and Text Extraction: Supports both direct text-based PDFs and scanned PDFs using OCR (Tesseract or Google Cloud Vision).
+- PDF Upload and Text Extraction: Supports both direct text-based PDFs and scanned PDFs using OCR (Tesseract or Google Cloud Vision).
 
-Vector Search: Uses FAISS for document similarity search and retrieval.
+- Vector Search: Uses FAISS for document similarity search and retrieval.
 
-Summarization and Q&A: Summarizes documents and answers queries using OpenAI's GPT models.
+- Summarization and Q&A: Summarizes documents and answers queries using OpenAI's GPT models.
 
-Comparison of Reports: Extracts common insights and unique content between two uploaded reports.
+- Comparison of Reports: Extracts common insights and unique content between two uploaded reports.
 
-Google Cloud Integration:
+- Google Cloud Integration:
 
-Google Cloud Storage for storing PDFs and vector stores.
+    - Google Cloud Storage for storing PDFs and vector stores.
 
-Google Cloud Secret Manager for secure management of sensitive keys.
+    - Google Cloud Secret Manager for secure management of sensitive keys.
 
-JWT Authentication for secure access to the backend.
+    - Google Cloud Run for Scalable architecture.
 
-Scalable Architecture: Deployable on Google Cloud Run.
+- JWT Authentication for secure access to the backend.
 
 ## 2. TECHNOLOGY STACK
 
-a. Python 3.12
+- Python 3.12
 
-b. FastAPI – For building the web API.
+- FastAPI – For building the web API.
 
-c. FAISS – For vector search.
+- FAISS – For vector search.
 
-d. PyPDF2 / PyPDFLoader – For processing PDF files.
+- PyPDF2 / PyPDFLoader – For processing PDF files.
 
-e. Pytesseract / Google Cloud Vision – For OCR processing.
+- Pytesseract / Google Cloud Vision – For OCR processing.
 
-f. OpenAI GPT – For summarization and Q&A tasks.
+- OpenAI GPT – For summarization and Q&A tasks.
 
-g. Google Cloud Services:
+- Google Cloud Services:
 
-h. Cloud Storage
+- Cloud Storage
 
-i. Secret Manager
+- Secret Manager
 
-j. Cloud Run
+- Cloud Run
 
 ## 3. SETUP INSTRUMENTS
 
 ### 3a. PREREQUISITES
 
-Python 3.12+ installed.
+- Python 3.12+ installed.
 
-Docker installed (optional for deployment).
+- Docker installed (optional for deployment).
 
-Google Cloud SDK installed and configured.
+- Google Cloud SDK installed and configured.
 
-Environment Variables
+- Environment Variables
 
-You need to set the following environment variables. These can be managed using Google Cloud Secret Manager and .env (for non-sensitive variables):
+    You need to set the following environment variables. These can be managed using Google Cloud Secret Manager and .env (for non-sensitive variables):
 
-Variable Name	Description
-
-OPENAI_KEY	OpenAI API Key
-
-SQLITE_KEY	Key for SQLite encryption (if applicable)
-
-SECRET_KEY	JWT secret key for authentication
-
-ALGORITHM	Algorithm for JWT (e.g., HS256)
+|Variable Name	|Description                              |
+|---------------|-----------------------------------------|
+|OPENAI_KEY	    |OpenAI API Key                           | 
+|SQLITE_KEY	    |Key for SQLite encryption (if applicable)|
+|SECRET_KEY     |JWT secret key for authentication        |
+|ALGORITHM	    |Algorithm for JWT (e.g., HS256)          |
 
 ### 3b. INSTALLATION
 
@@ -137,13 +134,13 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 ### Google Cloud Services
 
-Cloud Storage: Stores PDFs and vector stores (index.faiss and metadata).
+- Cloud Storage: Stores PDFs and vector stores (index.faiss and metadata).
 
-Secret Manager: Securely manages sensitive keys (OPENAI_KEY, SECRET_KEY, etc.).
+- Secret Manager: Securely manages sensitive keys (OPENAI_KEY, SECRET_KEY, etc.).
 
-Cloud Run: Deploys the backend as a scalable, containerized service.
+- Cloud Run: Deploys the backend as a scalable, containerized service.
 
-Cloud Build: Stream build changes and triggers a new build when production branch in git repo is updated
+- Cloud Build: Stream build changes and triggers a new build when production branch in git repo is updated
 
 ## 6. TESTING
 
