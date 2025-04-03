@@ -15,7 +15,6 @@ from pathlib import Path
 # Create FastAPI instance
 app = FastAPI()
 actions = execute_api()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://my-react-app-369543119888.us-central1.run.app","localhost:8080"],  # Allow your React app's origin
