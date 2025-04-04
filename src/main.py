@@ -10,6 +10,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware 
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from tools import make_retrieval_tool, make_summarizer_tool, make_answer_tool
+
 
 
 # Create FastAPI instance
@@ -118,24 +120,34 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
     
     try:
         all_results = []
-        query_prompt = actions.construct_query_prompt(request.query)
+        user_query = request.query
+       # query_prompt = actions.construct_query_prompt(request.query)
         llm = OpenAI(openai_api_key=actions.OPENAI_KEY, temperature=0.3)
         for store_name, store in actions.vector_stores.items():
-            results = store.similarity_search(query_prompt, k=4)
-            ranked_results = actions.get_document_rerank(3,request.query,results)
-            all_results.extend(ranked_results)
-            print(f" Ranked results: {ranked_results}")
-            top_documents = [doc for doc in ranked_results]
-            if top_documents:
-                documents = [Document(page_content=doc) for doc in top_documents]
-                summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
-                summary = summarize_chain.run(documents)
-                summary_wordcloud = actions.generate_wordcloud(summary)
-                print(f"Summary for {store_name}: {summary}")
-            retriever = store.as_retriever()
-            qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-            answer = qa_chain.run(request.query)
-        return {"summary": summary, "answer": answer, "documents": [doc for doc in all_results], "summary_wordcloud": summary_wordcloud}
+            retrieval_tool = make_retrieval_tool(store, actions)
+            summarizer_tool = make_summarizer_tool(llm)
+            answer_tool = make_answer_tool(llm)
+            retrieved_text = retrieval_tool.run(user_query)
+            summary = summarizer_tool.run(retrieved_text)
+            summary_wordcloud = actions.generate_wordcloud(summary)
+            combined_input = f"{summary}\n\n[QUESTION]{user_query}"
+            answer = answer_tool.run(combined_input)
+            all_results.extend(retrieved_text)
+            # results = store.similarity_search(query_prompt, k=4)
+            # ranked_results = actions.get_document_rerank(3,request.query,results)
+            # all_results.extend(ranked_results)
+            # print(f" Ranked results: {ranked_results}")
+            # top_documents = [doc for doc in ranked_results]
+            # if top_documents:
+            #     documents = [Document(page_content=doc) for doc in top_documents]
+            #     summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
+            #     summary = summarize_chain.run(documents)
+            #     summary_wordcloud = actions.generate_wordcloud(summary)
+            #     print(f"Summary for {store_name}: {summary}")
+            # retriever = store.as_retriever()
+            # qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+            # answer = qa_chain.run(request.query)
+        return {"summary": summary, "answer": answer, "documents": all_results, "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
