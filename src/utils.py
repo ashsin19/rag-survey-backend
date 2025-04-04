@@ -47,8 +47,6 @@ from collections import Counter
 import nltk
 from nltk.stem import WordNetLemmatizer
 import chardet
-from transformers import BlipProcessor, BlipForConditionalGeneration
-from PIL import Image
 try:
     nltk.data.find('corpora/wordnet')
 except LookupError:
@@ -93,8 +91,6 @@ class execute_api:
     "once", "while", "just", "now", "then", "too", "very", "can", "could", 
     "shall", "should", "will", "would", "may", "might", "must", "do", "does", "did"
 }
-        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
         if platform.system() == "Linux" and shutil.which("pdftotext"):
             # Use system-installed pdftotext for Docker environment
             self.POPPLER_PATH = "/usr/bin"
@@ -116,12 +112,6 @@ class execute_api:
         response = client.access_secret_version(request={"name": name})
         return response.payload.data.decode("UTF-8")
 
-    def generate_image_caption(self,image_path):
-        image = Image.open(image_path).convert("RGB")
-        inputs = self.processor(image, return_tensors="pt")
-        out = self.model.generate(**inputs)
-        return self.processor.decode(out[0], skip_special_tokens=True)
-    
     def create_folders_in_src(self,folders):
         """Create folders in 'src' directory with Linux-specific permission handling."""
         src_path = os.path.abspath("src")  # Get the absolute path to the 'src' directory
@@ -315,31 +305,25 @@ class execute_api:
             return None   
     
     def get_report_comparison(self, query, rpt1, rpt2):
-        try:
-            res1 = rpt1.similarity_search(query, k=7)
-            res2 = rpt2.similarity_search(query, k=7)
+        res1 = rpt1.similarity_search(query, k=7)
+        res2 = rpt2.similarity_search(query, k=7)
 
-            content1 = set()
-            content2 = set()
-            for doc in res1:
-                content1.update(self.split_text_to_sentences(doc.page_content))
-            for doc in res2:
-                content2.update(self.split_text_to_sentences(doc.page_content))
-            # common_sentences = self.extract_common_sentences_cosine(list(content1), list(content2))
-            common_words = self.extract_common_words(list(content1), list(content2))
-            common_words = [str(word) for word in common_words]
-            print(f"Result from Function: {common_words}")
-            unique_to_report1 = content1 - content2
-            unique_to_report2 = content2 - content1
-            response_data = {
-                "common_insights": common_words,
-                "unique_in_report_1": [str(item) for item in unique_to_report1],
-                "unique_in_report_2": [str(item) for item in unique_to_report2]
-            }
-            return response_data
-        
-        except Exception as e:
-            print(f"{e}")
+        content1 = set()
+        content2 = set()
+        for doc in res1:
+            content1.update(self.split_text_to_sentences(doc.page_content))
+        for doc in res2:
+            content2.update(self.split_text_to_sentences(doc.page_content))
+        # common_sentences = self.extract_common_sentences_cosine(list(content1), list(content2))
+        common_words = self.extract_common_words(list(content1), list(content2))
+        unique_to_report1 = content1 - content2
+        unique_to_report2 = content2 - content1
+        return {
+            "common_insights": list(common_words),
+            "unique_in_report_1": list(unique_to_report1),
+            "unique_in_report_2": list(unique_to_report2)
+        }
+    
     def split_text_to_sentences(self,text):
         pattern_match = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s'
         sentences = re.split(pattern_match,text)
@@ -371,8 +355,8 @@ class execute_api:
         """Extract common words between two sets of content with their frequencies."""
         words1 = Counter(self.tokenize_words(" ".join(content1)))
         words2 = Counter(self.tokenize_words(" ".join(content2)))
+
         common_words_set = {word for word in words1 if word in words2}
-        # common_words_list = list(common_words_set)
         return common_words_set
 
 

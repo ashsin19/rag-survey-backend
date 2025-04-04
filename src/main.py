@@ -10,14 +10,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware 
 from fastapi.responses import JSONResponse
 from pathlib import Path
-from crewai_pipeline import build_crew
-from crewai_pipeline import make_reranked_retrieval_tool
 
 
 # Create FastAPI instance
 app = FastAPI()
 actions = execute_api()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://my-react-app-369543119888.us-central1.run.app","localhost:8080"],  # Allow your React app's origin
@@ -75,7 +72,7 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
     file_path = os.path.join(actions.UPLOAD_DIR, file.filename)
-    file_ext = os.path.splitext(file.filename)[1].lower()
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     actions.upload_pdf_to_gcs(file_path,file.filename,actions.UPLOAD_DIR)
@@ -83,40 +80,31 @@ async def upload_report(file: UploadFile = File(...), current_user: str = Depend
         # Ensure the file exists before processing
         if not os.path.exists(file_path):
             raise HTTPException(status_code=500, detail="File save error: File not found")
-        if file_ext in [".jpg", ".jpeg", ".png"]:
-            is_image = True
-        else:
-            is_image = False
-        if is_image:
+        loader = PyPDFLoader(file_path)
+        try:
+            documents = loader.load()
+            for doc in documents:
+                doc.metadata["filename"] = file.filename
+        except Exception:
+            documents = []
+
+        extracted_text = "\n".join([doc.page_content for doc in documents])
+
+        # If PyPDFLoader fails or returns empty text, use OCR
+        if not extracted_text.strip():
             extracted_text = actions.extract_text_from_images(file_path)
-            if not extracted_text.strip():
-                extracted_text = actions.generate_image_caption(file_path)  # see Step 2 below
-        else:
-            loader = PyPDFLoader(file_path)
-            try:
-                documents = loader.load()
-                for doc in documents:
-                    doc.metadata["filename"] = file.filename
-            except Exception:
-                documents = []
 
-            extracted_text = "\n".join([doc.page_content for doc in documents])
+        # if not extracted_text.strip():
+        #     raise HTTPException(status_code=500, detail="Failed to extract text from PDF. The document might be encrypted or unreadable.")
 
-            # If PyPDFLoader fails or returns empty text, use OCR
-            if not extracted_text.strip():
-                extracted_text = actions.extract_text_from_images(file_path)
+        # Process extracted text
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        chunks = text_splitter.split_text(extracted_text)
 
-            # if not extracted_text.strip():
-            #     raise HTTPException(status_code=500, detail="Failed to extract text from PDF. The document might be encrypted or unreadable.")
+        if not chunks:
+            raise HTTPException(status_code=500, detail="Error processing document: No valid text extracted.")
 
-            # Process extracted text
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-            chunks = text_splitter.split_text(extracted_text)
-
-            if not chunks:
-                raise HTTPException(status_code=500, detail="Error processing document: No valid text extracted.")
-
-        vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY),  metadatas=[{"filename": file.filename, "modality": "image" if is_image else "pdf"}] * len(chunks))
+        vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings(openai_api_key=actions.OPENAI_KEY), metadatas=[{"filename": file.filename}] * len(chunks))
         vector_store.save_local(f"{actions.VECTOR_DB_PATH}/{file.filename}")
         actions.upload_vectorstore_to_gcs(actions.VECTOR_DB_PATH,actions.VECTOR_DB_PATH)
         actions.vector_stores[file.filename] = vector_store
@@ -130,38 +118,24 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
     
     try:
         all_results = []
-        user_query = request.query
+        query_prompt = actions.construct_query_prompt(request.query)
         llm = OpenAI(openai_api_key=actions.OPENAI_KEY, temperature=0.3)
-
         for store_name, store in actions.vector_stores.items():
-            # Create reranked retriever tool from your existing logic
-            retrieval_tool = make_reranked_retrieval_tool(store, actions)
-            crew, task1, task2, task3 = build_crew(llm, retrieval_tool, user_query)
-
-            # Run each task manually
-            retrieved_docs = task1.execute()
-            summary = task2.execute(context=[retrieved_docs])
-            answer = task3.execute(context=[summary])
-            summary_wordcloud = actions.generate_wordcloud(summary)
-
-        # query_prompt = actions.construct_query_prompt(request.query)
-        # llm = OpenAI(openai_api_key=actions.OPENAI_KEY, temperature=0.3)
-        # for store_name, store in actions.vector_stores.items():
-        #     results = store.similarity_search(query_prompt, k=4)
-        #     ranked_results = actions.get_document_rerank(3,request.query,results)
-        #     all_results.extend(ranked_results)
-        #     print(f" Ranked results: {ranked_results}")
-        #     top_documents = [doc for doc in ranked_results]
-        #     if top_documents:
-        #         documents = [Document(page_content=doc) for doc in top_documents]
-        #         summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
-        #         summary = summarize_chain.run(documents)
-        #         summary_wordcloud = actions.generate_wordcloud(summary)
-        #         print(f"Summary for {store_name}: {summary}")
-        #     retriever = store.as_retriever()
-        #     qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-        #     answer = qa_chain.run(request.query)
-        return {"summary": summary, "answer": answer, "documents": retrieved_docs, "summary_wordcloud": summary_wordcloud}
+            results = store.similarity_search(query_prompt, k=4)
+            ranked_results = actions.get_document_rerank(3,request.query,results)
+            all_results.extend(ranked_results)
+            print(f" Ranked results: {ranked_results}")
+            top_documents = [doc for doc in ranked_results]
+            if top_documents:
+                documents = [Document(page_content=doc) for doc in top_documents]
+                summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
+                summary = summarize_chain.run(documents)
+                summary_wordcloud = actions.generate_wordcloud(summary)
+                print(f"Summary for {store_name}: {summary}")
+            retriever = store.as_retriever()
+            qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+            answer = qa_chain.run(request.query)
+        return {"summary": summary, "answer": answer, "documents": [doc for doc in all_results], "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
