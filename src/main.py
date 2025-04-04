@@ -132,6 +132,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             summary_wordcloud = actions.generate_wordcloud(summary)
             combined_input = f"{summary}\n\n[QUESTION]{user_query}"
             answer = answer_tool.run(combined_input)
+            print(f"Retrieved text: {retrieved_text}")
             all_results.extend(retrieved_text)
             # results = store.similarity_search(query_prompt, k=4)
             # ranked_results = actions.get_document_rerank(3,request.query,results)
