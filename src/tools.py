@@ -9,7 +9,7 @@ def make_retrieval_tool(store, actions):
     def retrieve(query: str) -> str:
         results = store.similarity_search(query, k=4)
         reranked = actions.get_document_rerank(3, query, results)
-        return "\n\n".join([doc.page_content for doc in reranked])
+        return "\n\n".join([doc for doc in reranked])
     
     return Tool(
         name="RerankedRetrieval",
