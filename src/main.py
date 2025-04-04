@@ -132,6 +132,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             summary_wordcloud = actions.generate_wordcloud(summary)
             combined_input = f"{summary}\n\n[QUESTION]{user_query}"
             answer = answer_tool.run(combined_input)
+            print(f"Retrieved text: {retrieved_text}")
             all_results.extend(retrieved_text)
             # results = store.similarity_search(query_prompt, k=4)
             # ranked_results = actions.get_document_rerank(3,request.query,results)
@@ -147,7 +148,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             # retriever = store.as_retriever()
             # qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
             # answer = qa_chain.run(request.query)
-        return {"summary": summary, "answer": answer, "documents": all_results, "summary_wordcloud": summary_wordcloud}
+        return {"summary": summary, "answer": answer, "documents": retrieved_text, "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
