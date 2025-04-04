@@ -148,7 +148,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             # retriever = store.as_retriever()
             # qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
             # answer = qa_chain.run(request.query)
-        return {"summary": summary, "answer": answer, "documents": all_results, "summary_wordcloud": summary_wordcloud}
+        return {"summary": summary, "answer": answer, "documents": retrieved_text, "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
 
