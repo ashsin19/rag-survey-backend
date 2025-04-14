@@ -106,6 +106,17 @@ class execute_api:
         pytesseract.pytesseract.tesseract_cmd = self.TESSERACT_PATH
         logging.basicConfig(level=logging.DEBUG)
 
+    def count_reports_in_gcs(self):
+        """Count the number of reports in the GCS bucket."""
+        try:
+            bucket = self.storage_client.bucket(self.BUCKET_NAME)
+            blobs = bucket.list_blobs(prefix=self.UPLOAD_DIR)
+            count = sum(1 for _ in blobs)
+            return count
+        except Exception as e:
+            print(f"Error counting reports: {e}")
+            return 0
+
     def get_secret(self,secret_id):
         client = secretmanager.SecretManagerServiceClient()
         name = f"projects/369543119888/secrets/{secret_id}/versions/latest"
