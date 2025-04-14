@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pathlib import Path
 from tools import make_retrieval_tool, make_summarizer_tool, make_answer_tool
-
+import time
 
 
 # Create FastAPI instance
@@ -118,9 +118,11 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
     if not actions.vector_stores:
         raise HTTPException(status_code=400, detail="No reports have been processed yet.")
     
-    try:
+    try:    
+        start = time.time()
         all_results = []
         user_query = request.query
+       # Construct the query prompt
        # query_prompt = actions.construct_query_prompt(request.query)
         llm = OpenAI(openai_api_key=actions.OPENAI_KEY, temperature=0.3)
         for store_name, store in actions.vector_stores.items():
@@ -148,6 +150,7 @@ async def query_report(request: QueryRequest, current_user: str = Depends(action
             # retriever = store.as_retriever()
             # qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
             # answer = qa_chain.run(request.query)
+        duration = time.time() - start
         return {"summary": summary, "answer": answer, "documents": [retrieved_text], "summary_wordcloud": summary_wordcloud}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying reports: {str(e)}")
@@ -214,8 +217,9 @@ async def delete_report(filename: str):
 
 @app.get("/stats/")
 async def get_stats():
+    count = actions.count_reports_in_gcs()
     return {
-        "reportsProcessed": 120,
+        "reportsProcessed": count,
         "fastestQueryTime": "2.3s",
         "comparisonCount": 45
     }
