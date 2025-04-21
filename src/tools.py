@@ -31,6 +31,7 @@ def make_summarizer_tool(llm):
         description="Summarizes the input document into key points."
     )
 
+
 # Tool 3: Answer Generator
 def make_answer_tool(llm):
     def answer(input_str: str) -> str:
